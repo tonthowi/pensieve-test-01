@@ -1,3 +1,29 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Simple cursor styles for different tools */
+.cursor-select { cursor: default; }
+.cursor-hand { cursor: grab; }
+.cursor-hand:active { cursor: grabbing; }
+.cursor-text { cursor: text; }
+.cursor-rectangle { cursor: crosshair; }
+.cursor-ellipse { cursor: crosshair; }
+.cursor-sticky { cursor: cell; }
+.cursor-image { cursor: copy; }
+.cursor-drawing { cursor: crosshair; }
+.cursor-eraser { cursor: no-drop; }
+
+/* Cursor overlay container */
+.cursor-overlay {
+  position: fixed;
+  pointer-events: none; /* Let events pass through to elements below */
+  z-index: 9999;
+  transform: translate(-50%, -50%); /* Center the icon */
+  color: #2563eb; /* blue-600 */
+}
+
+/* Hide the default cursor */
+.cursor-none {
+  cursor: none !important;
+}

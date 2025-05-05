@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback, memo, useMemo } from 'react';
 import { Group, Rect, Text, Transformer } from 'react-konva';
 import { StickyElement } from '../../types';
 import useCanvasStore from '../../store/useCanvasStore';
@@ -13,8 +13,12 @@ const StickyNote: React.FC<StickyNoteProps> = ({ element, isSelected }) => {
   const transformerRef = useRef<any>(null);
   const textRef = useRef<any>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const { updateElement, selectElement, saveToHistory } = useCanvasStore();
+  // Use specific selectors for better performance
+  const updateElement = useCanvasStore(state => state.updateElement);
+  const selectElement = useCanvasStore(state => state.selectElement);
+  const saveToHistory = useCanvasStore(state => state.saveToHistory);
 
   // Set up transformer when selected
   React.useEffect(() => {
@@ -24,16 +28,23 @@ const StickyNote: React.FC<StickyNoteProps> = ({ element, isSelected }) => {
     }
   }, [isSelected]);
 
+  // Start dragging
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
   // Handle drag end and save to history
-  const handleDragEnd = (e: any) => {
+  const handleDragEnd = useCallback((e: any) => {
+    setIsDragging(false);
+    // Only update store position when drag ends
     updateElement(element.id, {
       position: { x: e.target.x(), y: e.target.y() }
     });
     saveToHistory();
-  };
+  }, [element.id, updateElement, saveToHistory]);
 
   // Handle transform end and update element dimensions
-  const handleTransformEnd = () => {
+  const handleTransformEnd = useCallback(() => {
     if (!shapeRef.current) return;
 
     const node = shapeRef.current;
@@ -58,10 +69,10 @@ const StickyNote: React.FC<StickyNoteProps> = ({ element, isSelected }) => {
       }
     });
     saveToHistory();
-  };
+  }, [element.id, updateElement, saveToHistory]);
 
   // Handle double click to edit text
-  const handleDblClick = () => {
+  const handleDblClick = useCallback(() => {
     setIsEditing(true);
     // Create textarea over Konva text
     const textarea = document.createElement('textarea');
@@ -107,18 +118,49 @@ const StickyNote: React.FC<StickyNoteProps> = ({ element, isSelected }) => {
     };
     
     textarea.addEventListener('blur', handleBlur);
-  };
+    
+    // Also handle Enter key to confirm edits
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        textarea.blur();
+        e.preventDefault();
+      }
+    });
+  }, [element.id, element.text, updateElement, saveToHistory]);
 
-  // Calculate content padding
+  // Memoize visual properties to prevent unnecessary recalculations
   const padding = 12;
 
-  // Create a subtle shadow effect
-  const shadowProps = {
+  // Memoize shadow props
+  const shadowProps = useMemo(() => ({
     shadowColor: 'rgba(0,0,0,0.2)',
     shadowBlur: 6,
     shadowOffset: { x: 1, y: 1 },
     shadowOpacity: 0.5
-  };
+  }), []);
+
+  // Memoize the styling properties for the sticky note
+  const rectStyle = useMemo(() => ({
+    width: element.size.width,
+    height: element.size.height,
+    fill: element.color,
+    cornerRadius: 8,
+    perfectDrawEnabled: false,
+    ...shadowProps
+  }), [element.size.width, element.size.height, element.color, shadowProps]);
+
+  const textStyle = useMemo(() => ({
+    text: element.text,
+    fontSize: 16,
+    fontFamily: 'sans-serif',
+    fill: '#000000',
+    width: element.size.width - padding * 2,
+    height: element.size.height - padding * 2,
+    x: padding,
+    y: padding,
+    wrap: 'word' as const,
+    visible: !isEditing,
+  }), [element.text, element.size.width, element.size.height, isEditing, padding]);
 
   return (
     <>
@@ -128,31 +170,19 @@ const StickyNote: React.FC<StickyNoteProps> = ({ element, isSelected }) => {
         draggable
         onClick={() => selectElement(element.id)}
         onTap={() => selectElement(element.id)}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         ref={shapeRef}
         rotation={element.transform.rotation}
+        opacity={isDragging ? 0.85 : 1}
+        perfectDrawEnabled={false}
       >
-        <Rect
-          width={element.size.width}
-          height={element.size.height}
-          fill={element.color}
-          cornerRadius={8}
-          {...shadowProps}
-        />
+        <Rect {...rectStyle} />
         <Text
           ref={textRef}
-          text={element.text}
-          fontSize={16}
-          fontFamily="sans-serif"
-          fill="#000000"
-          width={element.size.width - padding * 2}
-          height={element.size.height - padding * 2}
-          x={padding}
-          y={padding}
-          wrap="word"
+          {...textStyle}
           onDblClick={handleDblClick}
           onDblTap={handleDblClick}
-          visible={!isEditing}
         />
       </Group>
       {isSelected && (
@@ -178,4 +208,4 @@ const StickyNote: React.FC<StickyNoteProps> = ({ element, isSelected }) => {
   );
 };
 
-export default StickyNote;
+export default memo(StickyNote);

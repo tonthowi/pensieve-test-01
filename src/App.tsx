@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import Board from './components/Canvas/Board';
 import Toolbar from './components/Toolbar/Toolbar';
 import StatusBar from './components/StatusBar/StatusBar';
+import CursorOverlay from './components/Cursor/CursorOverlay';
 
 function App() {
   // Update document title
@@ -56,6 +57,7 @@ function App() {
       <Toolbar />
       <Board />
       <StatusBar />
+      <CursorOverlay />
     </div>
   );
 }

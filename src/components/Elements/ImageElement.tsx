@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback, memo } from 'react';
 import { Group, Image, Transformer } from 'react-konva';
 import { ImageElement as ImageElementType } from '../../types';
 import useCanvasStore from '../../store/useCanvasStore';
@@ -13,14 +13,31 @@ const ImageElement: React.FC<ImageElementProps> = ({ element, isSelected }) => {
   const transformerRef = useRef<any>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   
-  const { updateElement, selectElement, saveToHistory } = useCanvasStore();
+  // Use specific selectors for better performance
+  const updateElement = useCanvasStore(state => state.updateElement);
+  const selectElement = useCanvasStore(state => state.selectElement);
+  const saveToHistory = useCanvasStore(state => state.saveToHistory);
 
-  // Load image
+  // Load image with memory cleanup
   useEffect(() => {
-    if (element.src) {
-      const img = new window.Image();
-      img.src = element.src;
-      img.onload = () => {
+    if (!element.src) return;
+    
+    // Track if component is still mounted
+    let isMounted = true;
+    
+    // Create a new image and store its URL for cleanup
+    const img = new window.Image();
+    let objectUrl = '';
+    
+    // Check if the source is a blob URL or a data URL
+    if (element.src.startsWith('blob:')) {
+      objectUrl = element.src;
+    }
+    
+    img.src = element.src;
+    img.onload = () => {
+      // Only update state if component is still mounted
+      if (isMounted) {
         setImage(img);
         
         // Update size if it's not set yet
@@ -33,9 +50,22 @@ const ImageElement: React.FC<ImageElementProps> = ({ element, isSelected }) => {
             size: { width: newWidth, height: newHeight }
           });
         }
-      };
-    }
-  }, [element.src, element.id, updateElement]);
+      }
+    };
+    
+    // On unmount or when src changes, clean up resources
+    return () => {
+      isMounted = false;
+      
+      // Revoke the Blob URL to prevent memory leaks
+      if (objectUrl && objectUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(objectUrl);
+      }
+      
+      // Clear image reference
+      setImage(null);
+    };
+  }, [element.src, element.id, element.size.width, element.size.height, updateElement]);
 
   // Set up transformer when selected
   useEffect(() => {
@@ -46,15 +76,15 @@ const ImageElement: React.FC<ImageElementProps> = ({ element, isSelected }) => {
   }, [isSelected]);
 
   // Handle drag end and save to history
-  const handleDragEnd = (e: any) => {
+  const handleDragEnd = useCallback((e: any) => {
     updateElement(element.id, {
       position: { x: e.target.x(), y: e.target.y() }
     });
     saveToHistory();
-  };
+  }, [element.id, updateElement, saveToHistory]);
 
   // Handle transform end and update element dimensions
-  const handleTransformEnd = () => {
+  const handleTransformEnd = useCallback(() => {
     if (!imageRef.current) return;
 
     const node = imageRef.current;
@@ -79,7 +109,7 @@ const ImageElement: React.FC<ImageElementProps> = ({ element, isSelected }) => {
       }
     });
     saveToHistory();
-  };
+  }, [element.id, updateElement, saveToHistory]);
 
   if (!image) return null;
 
@@ -121,4 +151,4 @@ const ImageElement: React.FC<ImageElementProps> = ({ element, isSelected }) => {
   );
 };
 
-export default ImageElement;
+export default memo(ImageElement);

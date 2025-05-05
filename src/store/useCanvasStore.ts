@@ -324,40 +324,114 @@ export const useCanvasStore = create<CanvasState & {
     const { elements, viewportPosition, zoomLevel, gridVisible } = get();
     
     try {
-      localStorage.setItem('whiteboard', JSON.stringify({
-        elements,
+      // Process elements to handle potential circular references
+      const sanitizedElements = elements.map(el => {
+        // Create a shallow copy to avoid mutating the original
+        const cleanElement = { ...el };
+        
+        // Handle special case for Drawing elements with large point arrays
+        if (el.type === 'drawing' && 'points' in el && el.points.length > 1000) {
+          // Simplify extremely long paths to prevent storage limits
+          const simplifiedPoints = [];
+          for (let i = 0; i < el.points.length; i += 4) {
+            simplifiedPoints.push(el.points[i]);
+          }
+          cleanElement.points = simplifiedPoints;
+        }
+        
+        return cleanElement;
+      });
+      
+      const dataToSave = {
+        elements: sanitizedElements,
         viewportPosition,
         zoomLevel,
         gridVisible,
-      }));
+        lastSaved: new Date().toISOString()
+      };
+      
+      // Use try-catch with JSON.stringify separately to catch circular reference errors
+      const serialized = JSON.stringify(dataToSave);
+      localStorage.setItem('whiteboard', serialized);
+      
+      // Create a backup in case the main save gets corrupted
+      localStorage.setItem('whiteboard_backup', serialized);
       return true;
     } catch (error) {
       console.error('Failed to save to localStorage:', error);
+      // Attempt fallback save without elements if JSON serialization failed
+      try {
+        localStorage.setItem('whiteboard_error_fallback', JSON.stringify({
+          viewportPosition,
+          zoomLevel,
+          gridVisible,
+          error: String(error),
+          timestamp: new Date().toISOString()
+        }));
+      } catch (fallbackError) {
+        // Complete failure, nothing we can do
+      }
       return false;
     }
   },
 
   loadFromLocalStorage: () => {
     try {
+      // First try to load from primary storage
       const savedData = localStorage.getItem('whiteboard');
-      if (!savedData) return false;
+      if (!savedData) {
+        // Try backup if main storage is empty
+        const backupData = localStorage.getItem('whiteboard_backup');
+        if (!backupData) return false;
+        
+        console.info('Restored from backup storage');
+        return loadStateFromJson(backupData);
+      }
       
-      const { elements, viewportPosition, zoomLevel, gridVisible } = JSON.parse(savedData);
-      
-      set({
-        elements: elements || [],
-        viewportPosition: viewportPosition || { x: 0, y: 0 },
-        zoomLevel: zoomLevel || 1,
-        gridVisible: gridVisible ?? true,
-        history: [elements || []],
-        historyIndex: 0,
-        selectedIds: []
-      });
-      
-      return true;
+      return loadStateFromJson(savedData);
     } catch (error) {
-      console.error('Failed to load from localStorage:', error);
+      console.error('Failed to load from primary localStorage:', error);
+      
+      // Try backup if main parsing failed
+      try {
+        const backupData = localStorage.getItem('whiteboard_backup');
+        if (backupData) {
+          console.info('Primary load failed, attempting backup restore');
+          return loadStateFromJson(backupData);
+        }
+      } catch (backupError) {
+        console.error('Both primary and backup localStorage loads failed:', backupError);
+      }
+      
       return false;
+    }
+    
+    // Helper function to parse JSON and set state
+    function loadStateFromJson(jsonData: string): boolean {
+      try {
+        // First try regular parsing
+        const { elements, viewportPosition, zoomLevel, gridVisible } = JSON.parse(jsonData);
+        
+        // Validate elements to ensure they have required properties
+        const validElements = (elements || []).filter(el => {
+          return el && typeof el === 'object' && 'id' in el && 'type' in el && 'position' in el;
+        });
+        
+        set({
+          elements: validElements,
+          viewportPosition: viewportPosition || { x: 0, y: 0 },
+          zoomLevel: zoomLevel || 1,
+          gridVisible: gridVisible ?? true,
+          history: [validElements],
+          historyIndex: 0,
+          selectedIds: []
+        });
+        
+        return true;
+      } catch (parseError) {
+        console.error('Failed to parse localStorage JSON:', parseError);
+        return false;
+      }
     }
   },
 

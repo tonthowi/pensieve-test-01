@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback, memo, useEffect } from 'react';
 import { Group, Text, Transformer } from 'react-konva';
 import { TextElement } from '../../types';
 import useCanvasStore from '../../store/useCanvasStore';
@@ -13,7 +13,11 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
   const transformerRef = useRef<any>(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  const { updateElement, selectElement, saveToHistory } = useCanvasStore();
+  // Use specific selectors for better performance
+  const updateElement = useCanvasStore(state => state.updateElement);
+  const selectElement = useCanvasStore(state => state.selectElement);
+  const saveToHistory = useCanvasStore(state => state.saveToHistory);
+  const tool = useCanvasStore(state => state.tool);
 
   // Set up transformer when selected
   React.useEffect(() => {
@@ -24,15 +28,15 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
   }, [isSelected]);
 
   // Handle drag end and save to history
-  const handleDragEnd = (e: any) => {
+  const handleDragEnd = useCallback((e: any) => {
     updateElement(element.id, {
       position: { x: e.target.x(), y: e.target.y() }
     });
     saveToHistory();
-  };
+  }, [element.id, updateElement, saveToHistory]);
 
   // Handle transform end and update element dimensions
-  const handleTransformEnd = () => {
+  const handleTransformEnd = useCallback(() => {
     if (!textRef.current) return;
 
     const node = textRef.current;
@@ -58,10 +62,19 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
       }
     });
     saveToHistory();
-  };
+  }, [element.id, element.fontSize, updateElement, saveToHistory]);
+
+  // Check if this is a newly created text element that should be auto-focused
+  useEffect(() => {
+    // If this is a text element and was just created, auto-focus it
+    if (element.type === 'text' && element.text === 'Text' && tool === 'text') {
+      // Auto-edit if text content is the default
+      handleEdit();
+    }
+  }, [element.id]); // Only run once when the component mounts with a specific ID
 
   // Handle double click to edit text
-  const handleDblClick = () => {
+  const handleEdit = useCallback(() => {
     setIsEditing(true);
     // Create textarea over Konva text
     const textarea = document.createElement('textarea');
@@ -106,8 +119,35 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
       layer.batchDraw();
     };
     
+    // Add key handlers for better editing experience
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && e.shiftKey) {
+        // Allow multi-line with Shift+Enter
+        return;
+      } else if (e.key === 'Enter') {
+        // Finish editing on Enter
+        e.preventDefault();
+        textarea.blur();
+      } else if (e.key === 'Escape') {
+        // Cancel editing on Escape
+        const originalText = element.text;
+        textarea.value = originalText;
+        textarea.blur();
+      }
+    };
+    
     textarea.addEventListener('blur', handleBlur);
-  };
+    textarea.addEventListener('keydown', handleKeyDown);
+    
+    // Clean up event listeners when done
+    return () => {
+      textarea.removeEventListener('blur', handleBlur);
+      textarea.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [element.id, element.text, updateElement, saveToHistory]);
+  
+  // Alias for double-click to match our new naming
+  const handleDblClick = handleEdit;
 
   return (
     <>
@@ -116,6 +156,7 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
         onClick={() => selectElement(element.id)}
         onTap={() => selectElement(element.id)}
         onDragEnd={handleDragEnd}
+        data-id={element.id}
       >
         <Text
           ref={textRef}
@@ -135,6 +176,8 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
           rotation={element.transform.rotation}
           scaleX={element.transform.scaleX}
           scaleY={element.transform.scaleY}
+          perfectDrawEnabled={false}
+          data-id={element.id}
         />
       </Group>
       {isSelected && (
@@ -160,4 +203,4 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
   );
 };
 
-export default TextBox;
+export default memo(TextBox);

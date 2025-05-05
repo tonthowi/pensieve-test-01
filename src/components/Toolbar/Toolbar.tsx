@@ -1,5 +1,5 @@
 import React from 'react';
-import { TextCursor as Cursor, StickyNote, Type, Square, Circle, ImageIcon, Pencil, Eraser, Hand, Undo2, Redo2, Grid3X3, Download, Plus, Minus, Trash2 } from 'lucide-react';
+import { MousePointer2, StickyNote, Type, Square, Circle, ImageIcon, Pencil, Eraser, Hand, Undo2, Redo2, Grid3X3, Download, Plus, Minus, Trash2 } from 'lucide-react';
 import useCanvasStore from '../../store/useCanvasStore';
 import { Tool } from '../../types';
 import ColorPicker from './ColorPicker';
@@ -77,7 +77,7 @@ const Toolbar: React.FC = () => {
     {
       title: 'Selection',
       tools: [
-        { id: 'select', icon: <Cursor size={20} />, label: 'Select' },
+        { id: 'select', icon: <MousePointer2 size={20} />, label: 'Select' },
         { id: 'hand', icon: <Hand size={20} />, label: 'Pan' },
       ]
     },
@@ -104,7 +104,7 @@ const Toolbar: React.FC = () => {
   const strokeWidths = [2, 4, 6, 8, 12];
 
   return (
-    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg p-1 z-10 flex flex-col">
+    <div className="toolbar fixed top-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg p-1 z-10 flex flex-col">
       {/* Main tools */}
       <div className="flex space-x-1 p-1">
         {toolGroups.map((group) => (
