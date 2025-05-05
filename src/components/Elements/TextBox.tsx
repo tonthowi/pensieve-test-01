@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, memo, useEffect } from 'react';
-import { Group, Text, Transformer } from 'react-konva';
+import { Text, Transformer } from 'react-konva';
 import { TextElement } from '../../types';
 import useCanvasStore from '../../store/useCanvasStore';
 
@@ -29,11 +29,16 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
 
   // Handle drag end and save to history
   const handleDragEnd = useCallback((e: any) => {
-    updateElement(element.id, {
-      position: { x: e.target.x(), y: e.target.y() }
-    });
-    saveToHistory();
-  }, [element.id, updateElement, saveToHistory]);
+    // Use the actual position from the drag event
+    // This ensures the text element stays where the user dragged it
+    const newPosition = { x: e.target.x(), y: e.target.y() };
+    
+    // Check if position actually changed to avoid unnecessary updates
+    if (newPosition.x !== element.position.x || newPosition.y !== element.position.y) {
+      updateElement(element.id, { position: newPosition });
+      saveToHistory();
+    }
+  }, [element.id, element.position.x, element.position.y, updateElement, saveToHistory]);
 
   // Handle transform end and update element dimensions
   const handleTransformEnd = useCallback(() => {
@@ -87,6 +92,8 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
     const stageBox = textRef.current.getStage().container().getBoundingClientRect();
     const scale = textRef.current.getStage().scaleX();
     
+    // Check if text is the default placeholder
+    const isDefaultText = element.text === 'Text';
     textarea.value = element.text;
     textarea.style.position = 'absolute';
     textarea.style.top = `${stageBox.top + textPosition.y}px`;
@@ -108,6 +115,21 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
     textarea.style.color = element.fill;
     
     textarea.focus();
+    
+    // If default text, select all text so it gets replaced on first keystroke
+    if (isDefaultText) {
+      textarea.select();
+    }
+    
+    // Handle first keystroke to clear default text
+    const handleInput = () => {
+      if (isDefaultText && textarea.value === 'Text') {
+        textarea.value = '';
+      }
+      // Remove this event listener after first input
+      textarea.removeEventListener('input', handleInput);
+    };
+    textarea.addEventListener('input', handleInput);
     
     // Save text on blur and remove textarea
     const handleBlur = () => {
@@ -143,6 +165,7 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
     return () => {
       textarea.removeEventListener('blur', handleBlur);
       textarea.removeEventListener('keydown', handleKeyDown);
+      textarea.removeEventListener('input', handleInput);
     };
   }, [element.id, element.text, updateElement, saveToHistory]);
   
@@ -151,35 +174,31 @@ const TextBox: React.FC<TextBoxProps> = ({ element, isSelected }) => {
 
   return (
     <>
-      <Group
+      <Text
+        ref={textRef}
+        x={element.position.x}
+        y={element.position.y}
+        text={element.text}
+        fontSize={element.fontSize}
+        fontFamily={element.fontFamily}
+        fontStyle={element.fontStyle}
+        fill={element.fill}
+        width={element.size.width}
+        height={element.size.height}
+        wrap="word"
+        onDblClick={handleDblClick}
+        onDblTap={handleDblClick}
+        visible={!isEditing}
+        rotation={element.transform.rotation}
+        scaleX={element.transform.scaleX}
+        scaleY={element.transform.scaleY}
+        perfectDrawEnabled={false}
         draggable
         onClick={() => selectElement(element.id)}
         onTap={() => selectElement(element.id)}
         onDragEnd={handleDragEnd}
         data-id={element.id}
-      >
-        <Text
-          ref={textRef}
-          x={element.position.x}
-          y={element.position.y}
-          text={element.text}
-          fontSize={element.fontSize}
-          fontFamily={element.fontFamily}
-          fontStyle={element.fontStyle}
-          fill={element.fill}
-          width={element.size.width}
-          height={element.size.height}
-          wrap="word"
-          onDblClick={handleDblClick}
-          onDblTap={handleDblClick}
-          visible={!isEditing}
-          rotation={element.transform.rotation}
-          scaleX={element.transform.scaleX}
-          scaleY={element.transform.scaleY}
-          perfectDrawEnabled={false}
-          data-id={element.id}
-        />
-      </Group>
+      />
       {isSelected && (
         <Transformer
           ref={transformerRef}

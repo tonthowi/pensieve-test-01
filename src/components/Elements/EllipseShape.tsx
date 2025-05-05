@@ -24,8 +24,14 @@ const EllipseShape: React.FC<EllipseShapeProps> = ({ element, isSelected }) => {
 
   // Handle drag end and save to history
   const handleDragEnd = (e: any) => {
+    // Calculate the position accounting for the radius offset
+    const radiusX = element.size.width / 2;
+    const radiusY = element.size.height / 2;
     updateElement(element.id, {
-      position: { x: e.target.x(), y: e.target.y() }
+      position: { 
+        x: e.target.x() - radiusX, 
+        y: e.target.y() - radiusY 
+      }
     });
     saveToHistory();
   };
