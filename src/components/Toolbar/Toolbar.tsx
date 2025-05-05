@@ -104,7 +104,7 @@ const Toolbar: React.FC = () => {
   const strokeWidths = [2, 4, 6, 8, 12];
 
   return (
-    <div className="toolbar fixed top-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg p-1 z-10 flex flex-col">
+    <div className="toolbar fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg p-1 z-10 flex flex-col">
       {/* Main tools */}
       <div className="flex space-x-1 p-1">
         {toolGroups.map((group) => (

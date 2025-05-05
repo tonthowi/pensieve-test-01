@@ -253,7 +253,7 @@ export const useCanvasStore = create<CanvasState & {
           size: { width: 200, height: 50 },
           transform: { rotation: 0, scaleX: 1, scaleY: 1 },
           zIndex: get().elements.length,
-          text: 'Text',
+          text: 'Type to write',
           fontSize: 20,
           fontFamily: 'Arial',
           fontStyle: 'normal',
